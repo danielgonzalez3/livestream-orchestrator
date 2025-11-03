@@ -13,7 +13,7 @@ export function createWebhooksRouter(
     try {
       const event = req.body;
 
-      logger.info('Received LiveKit webhook', { eventType: event.event, roomName: event.room?.name });
+      logger.info('Received LiveKit webhook', { eventType: event.event, roomId: event.room?.id });
 
       switch (event.event) {
         case 'participant_joined':
@@ -51,12 +51,12 @@ async function handleParticipantJoined(
   stateService: StreamStateService,
   event: any
 ): Promise<void> {
-  const roomName = event.room?.name;
-  if (!roomName) return;
+  const roomId = event.room?.id;
+  if (!roomId) return;
 
-  const stream = stateService.getStreamByRoomName(roomName);
+  const stream = await stateService.getStream(roomId);
   if (!stream) {
-    logger.warn(`Received participant_joined webhook for unknown room: ${roomName}`);
+    logger.warn(`Received participant_joined webhook for unknown room: ${roomId}`);
     return;
   }
 
@@ -83,12 +83,12 @@ async function handleParticipantLeft(
   stateService: StreamStateService,
   event: any
 ): Promise<void> {
-  const roomName = event.room?.name;
-  if (!roomName) return;
+  const roomId = event.room?.id;
+  if (!roomId) return;
 
-  const stream = stateService.getStreamByRoomName(roomName);
+  const stream = await stateService.getStream(roomId);
   if (!stream) {
-    logger.warn(`Received participant_left webhook for unknown room: ${roomName}`);
+    logger.warn(`Received participant_left webhook for unknown room: ${roomId}`);
     return;
   }
 
@@ -103,16 +103,16 @@ async function handleRoomFinished(
   stateService: StreamStateService,
   event: any
 ): Promise<void> {
-  const roomName = event.room?.name;
-  if (!roomName) return;
+  const roomId = event.room?.id;
+  if (!roomId) return;
 
-  const stream = stateService.getStreamByRoomName(roomName);
+  const stream = await stateService.getStream(roomId);
   if (!stream) {
-    logger.warn(`Received room_finished webhook for unknown room: ${roomName}`);
+    logger.warn(`Received room_finished webhook for unknown room: ${roomId}`);
     return;
   }
 
-  logger.info(`Room finished, updating stream status: ${stream.id}`, { streamId: stream.id, roomName });
+  logger.info(`Room finished, updating stream status: ${stream.id}`, { streamId: stream.id, roomId });
   await stateService.updateStreamStatus(stream.id, 'stopped' as any);
 }
 
@@ -121,16 +121,16 @@ async function handleRoomStarted(
   stateService: StreamStateService,
   event: any
 ): Promise<void> {
-  const roomName = event.room?.name;
-  if (!roomName) return;
+  const roomId = event.room?.id;
+  if (!roomId) return;
 
-  const stream = stateService.getStreamByRoomName(roomName);
+  const stream = await stateService.getStream(roomId);
   if (!stream) {
-    logger.warn(`Received room_started webhook for unknown room: ${roomName}`);
+    logger.warn(`Received room_started webhook for unknown room: ${roomId}`);
     return;
   }
 
-  logger.info(`Room started, updating stream status: ${stream.id}`, { streamId: stream.id, roomName });
+  logger.info(`Room started, updating stream status: ${stream.id}`, { streamId: stream.id, roomId });
   await stateService.updateStreamStatus(stream.id, 'active' as any);
 }
 

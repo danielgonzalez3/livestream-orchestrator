@@ -144,5 +144,27 @@ export class WebSocketService {
   getClientCount(): number {
     return this.clients.size;
   }
+
+  /**
+   * Gracefully shutdown WebSocket server
+   */
+  async shutdown(): Promise<void> {
+    logger.info('Shutting down WebSocket server...');
+    
+    // Close all client connections
+    for (const [ws] of this.clients.entries()) {
+      if (this.isAlive(ws)) {
+        ws.close(1000, 'Server shutting down');
+      }
+    }
+    
+    // Close the WebSocket server
+    return new Promise((resolve) => {
+      this.wss.close(() => {
+        logger.info('WebSocket server shutdown complete');
+        resolve();
+      });
+    });
+  }
 }
 

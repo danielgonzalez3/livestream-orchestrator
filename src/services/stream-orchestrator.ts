@@ -16,7 +16,7 @@ export class StreamOrchestratorService {
       await this.livekitService.createRoom(stream.roomName, metadata);
       await this.stateService.updateStreamStatus(stream.id, StreamStatus.ACTIVE);
       logger.info(`Stream created successfully: ${stream.id}`, { streamId: stream.id, roomName: stream.roomName });
-      return this.stateService.getStream(stream.id)!;
+      return (await this.stateService.getStream(stream.id))!;
     } catch (error) {
       await this.stateService.updateStreamStatus(stream.id, StreamStatus.ERROR);
       logger.error(`Failed to create LiveKit room for stream: ${stream.id}`, { error, streamId: stream.id });
@@ -25,7 +25,7 @@ export class StreamOrchestratorService {
   }
 
   async getStream(streamId: string): Promise<Stream | null> {
-    const stream = this.stateService.getStream(streamId);
+    const stream = await this.stateService.getStream(streamId);
     if (!stream) {
       return null;
     }
@@ -45,11 +45,11 @@ export class StreamOrchestratorService {
       logger.error(`Failed to sync stream with LiveKit: ${streamId}`, { error, streamId });
     }
 
-    return this.stateService.getStream(streamId) || null;
+    return (await this.stateService.getStream(streamId)) || null;
   }
 
   async stopStream(streamId: string): Promise<Stream | null> {
-    const stream = this.stateService.getStream(streamId);
+    const stream = await this.stateService.getStream(streamId);
     if (!stream) {
       return null;
     }
@@ -60,7 +60,7 @@ export class StreamOrchestratorService {
       await this.livekitService.deleteRoom(stream.roomName);
       await this.stateService.updateStreamStatus(streamId, StreamStatus.STOPPED);
       logger.info(`Stream stopped successfully: ${streamId}`, { streamId });
-      return this.stateService.getStream(streamId) || null;
+      return (await this.stateService.getStream(streamId)) || null;
     } catch (error) {
       await this.stateService.updateStreamStatus(streamId, StreamStatus.ERROR);
       logger.error(`Failed to stop LiveKit room for stream: ${streamId}`, { error, streamId });
@@ -86,7 +86,7 @@ export class StreamOrchestratorService {
   }
 
   private async syncParticipants(streamId: string, livekitParticipants: any[]): Promise<void> {
-    const stream = this.stateService.getStream(streamId);
+    const stream = await this.stateService.getStream(streamId);
     if (!stream) return;
 
     const currentParticipantIds = new Set(stream.participants.map((p: Participant) => p.id));
@@ -118,7 +118,7 @@ export class StreamOrchestratorService {
   }
 
   async generateAccessToken(streamId: string, participantName: string, metadata?: Record<string, any>): Promise<string | null> {
-    const stream = this.stateService.getStream(streamId);
+    const stream = await this.stateService.getStream(streamId);
     if (!stream) {
       return null;
     }

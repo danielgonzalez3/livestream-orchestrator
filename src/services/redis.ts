@@ -179,5 +179,17 @@ export class RedisService {
       return null;
     }
   }
+
+  async keys(pattern: string): Promise<string[]> {
+    try {
+      if (this.connected) {
+        return await this.client.keys(pattern);
+      }
+      return [];
+    } catch (error) {
+      logger.error('Redis keys error', { error, pattern });
+      return [];
+    }
+  }
 }
 

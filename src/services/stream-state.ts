@@ -9,12 +9,12 @@ const STREAM_EVENTS_CHANNEL = 'stream_events';
 const IDEMPOTENCY_TTL = 3600;
 
 export class StreamStateService extends EventEmitter {
-  private streams: Map<string, Stream> = new Map();
   private streamEvents: StreamEvent[] = [];
   private readonly MAX_EVENTS = 1000;
   private redisService?: RedisService;
   private instanceId: string;
   private isInitialized: boolean = false;
+  private readonly STREAM_KEY_PREFIX = 'stream:';
 
   constructor(redisService?: RedisService) {
     super();
@@ -54,15 +54,60 @@ export class StreamStateService extends EventEmitter {
     }
   }
 
+  private serializeStream(stream: Stream): string {
+    return JSON.stringify(stream);
+  }
+
+  private deserializeStream(json: string): Stream {
+    const parsed = JSON.parse(json);
+    // convert date strings back to Date objects
+    if (parsed.createdAt) parsed.createdAt = new Date(parsed.createdAt);
+    if (parsed.updatedAt) parsed.updatedAt = new Date(parsed.updatedAt);
+    if (parsed.stoppedAt) parsed.stoppedAt = new Date(parsed.stoppedAt);
+    if (parsed.participants) {
+      parsed.participants = parsed.participants.map((p: any) => ({
+        ...p,
+        joinedAt: p.joinedAt ? new Date(p.joinedAt) : undefined,
+        leftAt: p.leftAt ? new Date(p.leftAt) : undefined
+      }));
+    }
+    return parsed as Stream;
+  }
+
+  private async saveStream(stream: Stream): Promise<void> {
+    if (!this.redisService || !this.isInitialized) {
+      throw new Error('Redis not available - streams require Redis');
+    }
+    await this.redisService.set(`${this.STREAM_KEY_PREFIX}${stream.id}`, this.serializeStream(stream));
+  }
+
+  private async loadStream(streamId: string): Promise<Stream | null> {
+    if (!this.redisService || !this.isInitialized) {
+      return null;
+    }
+    const json = await this.redisService.get(`${this.STREAM_KEY_PREFIX}${streamId}`);
+    if (!json) {
+      return null;
+    }
+    try {
+      return this.deserializeStream(json);
+    } catch (error) {
+      logger.error('Failed to deserialize stream', { error, streamId });
+      return null;
+    }
+  }
+
   async createStream(roomName?: string, metadata?: Record<string, any>, idempotencyKey?: string): Promise<Stream> {
     // check idempotency key if provided
     if (idempotencyKey && this.redisService && this.isInitialized) {
       const existingId = await this.redisService.get(`idempotency:stream:${idempotencyKey}`);
       if (existingId) {
-        const existing = this.getStream(existingId);
+        const existing = await this.getStream(existingId);
         if (existing) {
           logger.info('Stream created via idempotency key', { idempotencyKey, streamId: existingId });
           return existing;
+        } else {
+          logger.warn('Stream not found for idempotency key', { idempotencyKey, existingId });
         }
       }
     }
@@ -79,7 +124,7 @@ export class StreamStateService extends EventEmitter {
       version: 1
     };
 
-    this.streams.set(streamId, stream);
+    await this.saveStream(stream);
     
     // store idempotency key mapping if provided
     if (idempotencyKey && this.redisService && this.isInitialized) {
@@ -92,21 +137,34 @@ export class StreamStateService extends EventEmitter {
     return stream;
   }
 
-  getStream(streamId: string): Stream | undefined {
-    return this.streams.get(streamId);
+  async getStream(streamId: string): Promise<Stream | undefined> {
+    const stream = await this.loadStream(streamId);
+    return stream || undefined;
   }
 
-  getStreamByRoomName(roomName: string): Stream | undefined {
-    for (const stream of this.streams.values()) {
-      if (stream.roomName === roomName) {
-        return stream;
-      }
+  async getAllStreams(): Promise<Stream[]> {
+    if (!this.redisService || !this.isInitialized) {
+      return [];
     }
-    return undefined;
-  }
-
-  getAllStreams(): Stream[] {
-    return Array.from(this.streams.values());
+    try {
+      // get all stream keys
+      const keys = await this.redisService.keys(`${this.STREAM_KEY_PREFIX}*`);
+      const streams: Stream[] = [];
+      for (const key of keys) {
+        const json = await this.redisService.get(key);
+        if (json) {
+          try {
+            streams.push(this.deserializeStream(json));
+          } catch (error) {
+            logger.error('Failed to deserialize stream', { error, key });
+          }
+        }
+      }
+      return streams;
+    } catch (error) {
+      logger.error('Failed to get all streams from Redis', { error });
+      return [];
+    }
   }
 
   async updateStreamStatus(streamId: string, status: StreamStatus, expectedVersion?: number): Promise<Stream | null> {
@@ -122,7 +180,7 @@ export class StreamStateService extends EventEmitter {
     }
 
     try {
-      const stream = this.streams.get(streamId);
+      const stream = await this.loadStream(streamId);
       if (!stream) {
         logger.warn(`Attempted to update non-existent stream: ${streamId}`);
         return null;
@@ -148,8 +206,15 @@ export class StreamStateService extends EventEmitter {
         stream.stoppedAt = new Date();
       }
 
-      this.streams.set(streamId, stream);
-      this.emitStreamEvent('stream_updated', streamId, { ...stream, previousStatus: oldStatus });
+      await this.saveStream(stream);
+      
+      // emit stream_stopped event when status changes to stopped
+      if (status === StreamStatus.STOPPED) {
+        this.emitStreamEvent('stream_stopped', streamId, { ...stream, previousStatus: oldStatus });
+      } else {
+        this.emitStreamEvent('stream_updated', streamId, { ...stream, previousStatus: oldStatus });
+      }
+      
       logger.info(`Updated stream status: ${streamId}`, { streamId, oldStatus, newStatus: status });
 
       return stream;
@@ -173,7 +238,7 @@ export class StreamStateService extends EventEmitter {
     }
 
     try {
-      const stream = this.streams.get(streamId);
+      const stream = await this.loadStream(streamId);
       if (!stream) {
         logger.warn(`Attempted to update metadata for non-existent stream: ${streamId}`);
         return null;
@@ -184,7 +249,7 @@ export class StreamStateService extends EventEmitter {
       if (stream.version !== undefined) {
         stream.version = (stream.version || 0) + 1;
       }
-      this.streams.set(streamId, stream);
+      await this.saveStream(stream);
       this.emitStreamEvent('stream_updated', streamId, stream);
 
       return stream;
@@ -207,7 +272,7 @@ export class StreamStateService extends EventEmitter {
     }
 
     try {
-      const stream = this.streams.get(streamId);
+      const stream = await this.loadStream(streamId);
       if (!stream) {
         logger.warn(`Attempted to add participant to non-existent stream: ${streamId}`);
         return null;
@@ -229,7 +294,7 @@ export class StreamStateService extends EventEmitter {
           if (stream.version !== undefined) {
             stream.version = (stream.version || 0) + 1;
           }
-          this.streams.set(streamId, stream);
+          await this.saveStream(stream);
           logger.info(`Participant already in stream (idempotent): ${streamId}`, { 
             streamId, 
             participantId: participant.id 
@@ -250,7 +315,7 @@ export class StreamStateService extends EventEmitter {
       if (stream.version !== undefined) {
         stream.version = (stream.version || 0) + 1;
       }
-      this.streams.set(streamId, stream);
+      await this.saveStream(stream);
       this.emitStreamEvent('participant_joined', streamId, { participant, stream });
       logger.info(`Added participant to stream: ${streamId}`, { streamId, participantId: participant.id });
 
@@ -274,7 +339,7 @@ export class StreamStateService extends EventEmitter {
     }
 
     try {
-      const stream = this.streams.get(streamId);
+      const stream = await this.loadStream(streamId);
       if (!stream) {
         logger.warn(`Attempted to remove participant from non-existent stream: ${streamId}`);
         return null;
@@ -299,7 +364,7 @@ export class StreamStateService extends EventEmitter {
         if (stream.version !== undefined) {
           stream.version = (stream.version || 0) + 1;
         }
-        this.streams.set(streamId, stream);
+        await this.saveStream(stream);
         this.emitStreamEvent('participant_left', streamId, { participant, stream });
         logger.info(`Removed participant from stream: ${streamId}`, { streamId, participantId });
       }
@@ -312,25 +377,19 @@ export class StreamStateService extends EventEmitter {
     }
   }
 
-  deleteStream(streamId: string): boolean {
-    const stream = this.streams.get(streamId);
+  async deleteStream(streamId: string): Promise<boolean> {
+    if (!this.redisService || !this.isInitialized) {
+      return false;
+    }
+    const stream = await this.loadStream(streamId);
     if (!stream) {
       return false;
     }
 
-    this.streams.delete(streamId);
+    await this.redisService.del(`${this.STREAM_KEY_PREFIX}${streamId}`);
     this.emitStreamEvent('stream_stopped', streamId, stream);
     logger.info(`Deleted stream: ${streamId}`, { streamId });
     return true;
-  }
-
-  // NOTE: only used for testing, storage is in memory
-  getStreamEvents(streamId?: string, limit: number = 100): StreamEvent[] {
-    let events = this.streamEvents;
-    if (streamId) {
-      events = events.filter(e => e.streamId === streamId);
-    }
-    return events.slice(-limit);
   }
 
   private emitStreamEvent(type: StreamEvent['type'], streamId: string, data: any): void {
@@ -342,18 +401,21 @@ export class StreamStateService extends EventEmitter {
       instanceId: this.instanceId
     };
 
+    // store in memory for fast access
     this.streamEvents.push(event);
     if (this.streamEvents.length > this.MAX_EVENTS) {
       this.streamEvents = this.streamEvents.slice(-this.MAX_EVENTS);
     }
 
-    this.emit('stream_event', event);
-
+    // publish to Redis for cross-instance event distribution
     if (this.redisService && this.isInitialized) {
-      this.redisService.publish(STREAM_EVENTS_CHANNEL, JSON.stringify(event)).catch(error => {
+      const eventJson = JSON.stringify(event);
+      this.redisService.publish(STREAM_EVENTS_CHANNEL, eventJson).catch(error => {
         logger.error('Failed to publish event to Redis', { error, eventType: type });
       });
     }
+
+    this.emit('stream_event', event);
   }
 
   onStreamEvent(callback: (event: StreamEvent) => void): () => void {

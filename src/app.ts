@@ -5,11 +5,10 @@ import { config } from './config';
 import { LiveKitService } from './services/livekit';
 import { StreamStateService } from './services/stream-state';
 import { StreamOrchestratorService } from './services/stream-orchestrator';
-import { WebSocketService } from './services/websocket';
+// import { WebSocketService } from './services/websocket';
 import { GrpcService } from './services/grpc';
 import { RedisService } from './services/redis';
 import { createStreamsRouter } from './routes/streams';
-import { createEventsRouter } from './routes/events';
 import { createWebhooksRouter } from './routes/webhooks';
 import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { logger } from './utils/logger';
@@ -20,7 +19,7 @@ export class App {
   private livekitService: LiveKitService;
   private stateService: StreamStateService;
   private orchestrator: StreamOrchestratorService;
-  private wsService?: WebSocketService;
+  // private wsService?: WebSocketService;
   private grpcService?: GrpcService;
   private redisService?: RedisService;
 
@@ -48,8 +47,8 @@ export class App {
     this.setupRoutes();
     this.setupErrorHandling();
 
-    this.wsService = new WebSocketService(this.server, this.stateService);
-    this.grpcService = new GrpcService(this.stateService, this.orchestrator);
+    // this.wsService = new WebSocketService(this.server, this.stateService);
+    this.grpcService = new GrpcService(this.stateService);
   }
 
   private setupMiddleware(): void {
@@ -61,7 +60,7 @@ export class App {
       res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        wsClients: this.wsService?.getClientCount() || 0,
+        // wsClients: this.wsService?.getClientCount() || 0,
         grpcClients: this.grpcService?.getClientCount() || 0,
         uptime: process.uptime()
       });
@@ -70,7 +69,6 @@ export class App {
 
   private setupRoutes(): void {
     this.app.use('/streams', createStreamsRouter(this.orchestrator, this.stateService, this.redisService));
-    this.app.use('/events', createEventsRouter(this.stateService));
     this.app.use('/webhooks', createWebhooksRouter(this.orchestrator, this.stateService));
   }
 
@@ -107,13 +105,45 @@ export class App {
 
   public async shutdown(): Promise<void> {
     logger.info('Shutting down server...');
-    if (this.grpcService) {
-      await this.grpcService.shutdown();
+  
+    try {
+      // Shutdown WS, gRPC, and Redis services
+      await Promise.all([
+        // this.wsService?.shutdown().catch(err => logger.error('WS shutdown failed', { err })),
+        this.grpcService?.shutdown().catch(err => logger.error('gRPC shutdown failed', { err })),
+        this.redisService?.disconnect().catch(err => logger.error('Redis disconnect failed', { err }))
+      ]);
+  
+      if (this.server.listening) {
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            logger.warn('Server shutdown timeout, forcing close');
+            if (typeof (this.server as any).closeAllConnections === 'function') {
+              (this.server as any).closeAllConnections();
+            }
+            this.server.close(() => resolve());
+          }, 5000);
+  
+          this.server.close(() => {
+            clearTimeout(timeout);
+            logger.info('HTTP server shutdown complete');
+            resolve();
+          });
+        });
+      }
+  
+      logger.info('All services shutdown complete');
+    } catch (error) {
+      logger.error('Error during shutdown', { error });
+      // Force close HTTP server if still listening
+      if (this.server.listening) {
+        if (typeof (this.server as any).closeAllConnections === 'function') {
+          (this.server as any).closeAllConnections();
+        }
+        this.server.close();
+      }
+      throw error;
     }
-    if (this.redisService) {
-      await this.redisService.disconnect();
-    }
-    this.server.close();
   }
 }
 

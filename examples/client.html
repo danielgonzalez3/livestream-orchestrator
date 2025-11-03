@@ -19,7 +19,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
 
@@ -29,6 +29,11 @@
             margin-bottom: 30px;
             font-size: 2.5em;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        h2 {
+            margin-bottom: 15px;
+            color: #333;
         }
 
         .card {
@@ -41,21 +46,34 @@
 
         .controls {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
         }
 
-        input, button, select {
-            padding: 12px;
+        .control-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        input, button, select, textarea {
+            padding: 10px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 14px;
         }
 
-        input:focus, select:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: monospace;
         }
 
         button {
@@ -65,6 +83,7 @@
             cursor: pointer;
             font-weight: 600;
             transition: background 0.3s;
+            white-space: nowrap;
         }
 
         button:hover {
@@ -74,6 +93,22 @@
         button:disabled {
             background: #ccc;
             cursor: not-allowed;
+        }
+
+        button.danger {
+            background: #dc3545;
+        }
+
+        button.danger:hover {
+            background: #c82333;
+        }
+
+        button.success {
+            background: #28a745;
+        }
+
+        button.success:hover {
+            background: #218838;
         }
 
         .status {
@@ -121,6 +156,7 @@
             font-size: 18px;
             font-weight: 600;
             color: #333;
+            word-break: break-all;
         }
 
         .participants-list {
@@ -138,7 +174,7 @@
         }
 
         .events-log {
-            max-height: 300px;
+            max-height: 400px;
             overflow-y: auto;
             background: #f8f9fa;
             border-radius: 8px;
@@ -159,6 +195,7 @@
         .event.joined { border-color: #ffc107; }
         .event.left { border-color: #dc3545; }
         .event.stopped { border-color: #6c757d; }
+        .event.info { border-color: #6c757d; }
 
         .error {
             background: #f8d7da;
@@ -167,46 +204,128 @@
             border-radius: 8px;
             margin-bottom: 15px;
         }
+
+        .response {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .stream-list {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .stream-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .stream-item:hover {
+            background: #e9ecef;
+        }
+
+        .stream-item.active {
+            background: #d4edda;
+            border: 2px solid #28a745;
+        }
+
+        .label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .inline-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .inline-controls > * {
+            flex: 1;
+            min-width: 150px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎥 Livestream Orchestrator Client</h1>
+        <h1>Orchestrator Client</h1>
 
         <!-- Connection Status -->
         <div class="card">
-            <div id="wsStatus" class="status disconnected">WebSocket: Disconnected</div>
             <div class="controls">
-                <input type="text" id="apiUrl" placeholder="API URL (default: http://localhost:3000)" value="http://localhost:3000">
-                <button id="connectBtn" onclick="connectWebSocket()">Connect WebSocket</button>
-                <button id="disconnectBtn" onclick="disconnectWebSocket()" disabled>Disconnect</button>
+                <input type="text" id="apiUrl" placeholder="API URL" value="http://localhost:3000" style="grid-column: 1 / -1;">
+                <button onclick="checkHealth()">Health Check</button>
             </div>
         </div>
 
-        <!-- Stream Controls -->
+        <!-- Stream Management -->
         <div class="card">
             <h2>Stream Management</h2>
-            <div class="controls">
+            <div class="control-group">
                 <input type="text" id="roomName" placeholder="Room Name (optional)">
-                <button onclick="createStream()">Create Stream</button>
+                <input type="text" id="metadata" placeholder='Metadata JSON: {"title":"My Stream"}' style="flex: 2;">
+                <button class="success" onclick="createStream()">Create Stream</button>
+            </div>
+            <div class="control-group">
                 <input type="text" id="streamId" placeholder="Stream ID">
                 <button onclick="getStream()">Get Stream</button>
                 <button onclick="getStreamState()">Get State</button>
-                <button onclick="stopStream()">Stop Stream</button>
+                <button onclick="listStreams()">List All Streams</button>
+                <button class="danger" onclick="stopStream()">Stop Stream</button>
+            </div>
+            <div id="streamListContainer" style="display: none;">
+                <div class="label">Click a stream to select it:</div>
+                <div class="stream-list" id="streamList"></div>
             </div>
         </div>
 
-        <!-- Participant Controls -->
+        <!-- Update Stream -->
+        <div class="card">
+            <h2>Update Stream</h2>
+            <div class="control-group">
+                <select id="statusSelect">
+                    <option value="">Select Status</option>
+                    <option value="creating">Creating</option>
+                    <option value="active">Active</option>
+                    <option value="stopping">Stopping</option>
+                    <option value="stopped">Stopped</option>
+                    <option value="error">Error</option>
+                </select>
+                <input type="text" id="updateMetadata" placeholder='Metadata JSON: {"title":"Updated"}' style="flex: 2;">
+                <button onclick="updateStream()">Update Stream</button>
+            </div>
+        </div>
+
+        <!-- Participant Management -->
         <div class="card">
             <h2>Participant Management</h2>
-            <div class="controls">
+            <div class="control-group">
                 <input type="text" id="participantName" placeholder="Participant Name" value="user1">
-                <button onclick="joinStream()">Join Stream</button>
-                <button onclick="leaveStream()">Leave Stream</button>
+                <input type="text" id="participantMetadata" placeholder='Metadata JSON: {"displayName":"John"}' style="flex: 2;">
+                <button class="success" onclick="joinStream()">Join Stream</button>
+                <button class="danger" onclick="leaveStream()">Leave Stream</button>
             </div>
         </div>
 
-        <!-- Stream Info -->
+
+        <!-- Stream Info Display -->
         <div class="card" id="streamInfoCard" style="display: none;">
             <h2>Stream Information</h2>
             <div class="stream-info">
@@ -231,26 +350,24 @@
                 <h3>Participants</h3>
                 <div id="participantsList"></div>
             </div>
+            <div id="responseContainer"></div>
         </div>
 
         <!-- Events Log -->
         <div class="card">
             <h2>Events Log</h2>
+            <div class="inline-controls">
+                <button onclick="clearLog()">Clear Log</button>
+            </div>
             <div class="events-log" id="eventsLog"></div>
         </div>
     </div>
 
     <script>
-        let ws = null;
         let currentStreamId = null;
 
         function getApiUrl() {
             return document.getElementById('apiUrl').value || 'http://localhost:3000';
-        }
-
-        function getWsUrl() {
-            const apiUrl = getApiUrl();
-            return apiUrl.replace(/^http/, 'ws');
         }
 
         function logEvent(type, message, data = {}) {
@@ -260,7 +377,7 @@
             const timestamp = new Date().toLocaleTimeString();
             event.textContent = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
             if (Object.keys(data).length > 0) {
-                event.textContent += ` ${JSON.stringify(data)}`;
+                event.textContent += `\n${JSON.stringify(data, null, 2)}`;
             }
             log.appendChild(event);
             log.scrollTop = log.scrollHeight;
@@ -270,73 +387,17 @@
             const error = document.createElement('div');
             error.className = 'error';
             error.textContent = message;
-            document.querySelector('.container').insertBefore(error, document.querySelector('.card'));
+            const container = document.querySelector('.container');
+            container.insertBefore(error, container.firstChild.nextSibling);
             setTimeout(() => error.remove(), 5000);
         }
 
-        function connectWebSocket() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                return;
-            }
-
-            const wsUrl = getWsUrl();
-            ws = new WebSocket(wsUrl);
-
-            ws.onopen = () => {
-                document.getElementById('wsStatus').textContent = 'WebSocket: Connected';
-                document.getElementById('wsStatus').className = 'status connected';
-                document.getElementById('connectBtn').disabled = true;
-                document.getElementById('disconnectBtn').disabled = false;
-                logEvent('connected', 'WebSocket connected');
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    logEvent(data.type || 'message', 'Received event', data);
-
-                    // Handle stream events
-                    if (data.type === 'stream_event') {
-                        handleStreamEvent(data);
-                    }
-                } catch (e) {
-                    logEvent('error', 'Failed to parse message', { error: e.message });
-                }
-            };
-
-            ws.onclose = () => {
-                document.getElementById('wsStatus').textContent = 'WebSocket: Disconnected';
-                document.getElementById('wsStatus').className = 'status disconnected';
-                document.getElementById('connectBtn').disabled = false;
-                document.getElementById('disconnectBtn').disabled = true;
-                logEvent('disconnected', 'WebSocket disconnected');
-            };
-
-            ws.onerror = (error) => {
-                logEvent('error', 'WebSocket error', { error: error.message });
-                showError('WebSocket connection failed');
-            };
+        function showResponse(data) {
+            const container = document.getElementById('responseContainer');
+            if (!container) return;
+            container.innerHTML = '<div class="label">Last Response:</div><div class="response">' + JSON.stringify(data, null, 2) + '</div>';
         }
 
-        function disconnectWebSocket() {
-            if (ws) {
-                ws.close();
-                ws = null;
-            }
-        }
-
-        function subscribeToStream(streamId) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'subscribe', streamId }));
-                logEvent('subscribe', `Subscribed to stream ${streamId}`);
-            }
-        }
-
-        function handleStreamEvent(event) {
-            if (event.data && event.data.stream) {
-                updateStreamInfo(event.data.stream);
-            }
-        }
 
         async function apiRequest(method, endpoint, body = null) {
             try {
@@ -362,17 +423,73 @@
             }
         }
 
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${getApiUrl()}/health`);
+                const data = await response.json();
+                showResponse(data);
+                logEvent('info', 'Health check', data);
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
         async function createStream() {
             try {
                 const roomName = document.getElementById('roomName').value || undefined;
-                const stream = await apiRequest('POST', '/streams', { roomName });
+                let metadata = undefined;
+                const metadataStr = document.getElementById('metadata').value;
+                if (metadataStr) {
+                    try {
+                        metadata = JSON.parse(metadataStr);
+                    } catch (e) {
+                        showError('Invalid metadata JSON');
+                        return;
+                    }
+                }
+                const stream = await apiRequest('POST', '/streams', { roomName, metadata });
                 currentStreamId = stream.id;
                 document.getElementById('streamId').value = stream.id;
+                showResponse(stream);
                 updateStreamInfo(stream);
-                subscribeToStream(stream.id);
-                logEvent('created', `Stream created: ${stream.id}`, { roomName: stream.roomName });
+                logEvent('created', `Stream created: ${stream.id}`, stream);
             } catch (error) {
                 logEvent('error', 'Failed to create stream', { error: error.message });
+            }
+        }
+
+        async function listStreams() {
+            try {
+                const streams = await apiRequest('GET', '/streams');
+                showResponse(streams);
+                logEvent('info', `Found ${streams.length} streams`);
+                
+                const container = document.getElementById('streamListContainer');
+                const list = document.getElementById('streamList');
+                container.style.display = 'block';
+                list.innerHTML = '';
+                
+                streams.forEach(stream => {
+                    const item = document.createElement('div');
+                    item.className = 'stream-item';
+                    if (stream.id === currentStreamId) {
+                        item.classList.add('active');
+                    }
+                    item.innerHTML = `
+                        <div><strong>${stream.id.substring(0, 8)}...</strong> - ${stream.roomName}</div>
+                        <div>Status: ${stream.status} | Participants: ${stream.participants.length}</div>
+                    `;
+                    item.onclick = () => {
+                        document.getElementById('streamId').value = stream.id;
+                        currentStreamId = stream.id;
+                        updateStreamInfo(stream);
+                        document.querySelectorAll('.stream-item').forEach(el => el.classList.remove('active'));
+                        item.classList.add('active');
+                    };
+                    list.appendChild(item);
+                });
+            } catch (error) {
+                logEvent('error', 'Failed to list streams', { error: error.message });
             }
         }
 
@@ -385,8 +502,8 @@
                 }
                 const stream = await apiRequest('GET', `/streams/${streamId}`);
                 currentStreamId = stream.id;
+                showResponse(stream);
                 updateStreamInfo(stream);
-                subscribeToStream(stream.id);
                 logEvent('fetched', `Stream fetched: ${stream.id}`);
             } catch (error) {
                 logEvent('error', 'Failed to get stream', { error: error.message });
@@ -401,9 +518,48 @@
                     return;
                 }
                 const state = await apiRequest('GET', `/streams/${streamId}/state`);
+                showResponse(state);
                 logEvent('state', `Stream state: ${streamId}`, state);
             } catch (error) {
                 logEvent('error', 'Failed to get stream state', { error: error.message });
+            }
+        }
+
+        async function updateStream() {
+            try {
+                const streamId = document.getElementById('streamId').value || currentStreamId;
+                if (!streamId) {
+                    showError('Please enter a stream ID');
+                    return;
+                }
+
+                const status = document.getElementById('statusSelect').value || undefined;
+                let metadata = undefined;
+                const metadataStr = document.getElementById('updateMetadata').value;
+                if (metadataStr) {
+                    try {
+                        metadata = JSON.parse(metadataStr);
+                    } catch (e) {
+                        showError('Invalid metadata JSON');
+                        return;
+                    }
+                }
+
+                if (!status && !metadata) {
+                    showError('Please provide status or metadata to update');
+                    return;
+                }
+
+                const body = {};
+                if (status) body.status = status;
+                if (metadata) body.metadata = metadata;
+
+                const stream = await apiRequest('PATCH', `/streams/${streamId}`, body);
+                showResponse(stream);
+                updateStreamInfo(stream);
+                logEvent('updated', `Stream updated: ${streamId}`, stream);
+            } catch (error) {
+                logEvent('error', 'Failed to update stream', { error: error.message });
             }
         }
 
@@ -414,9 +570,17 @@
                     showError('Please enter a stream ID');
                     return;
                 }
-                await apiRequest('DELETE', `/streams/${streamId}`);
-                logEvent('stopped', `Stream stopped: ${streamId}`);
+                if (!confirm(`Are you sure you want to stop stream ${streamId}?`)) {
+                    return;
+                }
+                const result = await apiRequest('DELETE', `/streams/${streamId}`);
+                showResponse(result);
+                logEvent('stopped', `Stream stopped: ${streamId}`, result);
                 document.getElementById('streamInfoCard').style.display = 'none';
+                if (currentStreamId === streamId) {
+                    currentStreamId = null;
+                    document.getElementById('streamId').value = '';
+                }
             } catch (error) {
                 logEvent('error', 'Failed to stop stream', { error: error.message });
             }
@@ -430,11 +594,24 @@
                     showError('Please enter stream ID and participant name');
                     return;
                 }
+
+                let metadata = undefined;
+                const metadataStr = document.getElementById('participantMetadata').value;
+                if (metadataStr) {
+                    try {
+                        metadata = JSON.parse(metadataStr);
+                    } catch (e) {
+                        showError('Invalid metadata JSON');
+                        return;
+                    }
+                }
+
                 const result = await apiRequest('POST', `/streams/${streamId}/join`, {
-                    participantName
+                    participantName,
+                    metadata
                 });
-                logEvent('joined', `Participant joined: ${participantName}`, { token: result.token.substring(0, 20) + '...' });
-                // Refresh stream info
+                showResponse(result);
+                logEvent('joined', `Participant joined: ${participantName}`, { token: result.token?.substring(0, 20) + '...' });
                 await getStream();
             } catch (error) {
                 logEvent('error', 'Failed to join stream', { error: error.message });
@@ -449,16 +626,17 @@
                     showError('Please enter stream ID and participant name');
                     return;
                 }
-                await apiRequest('POST', `/streams/${streamId}/leave`, {
+                const result = await apiRequest('POST', `/streams/${streamId}/leave`, {
                     participantName
                 });
-                logEvent('left', `Participant left: ${participantName}`);
-                // Refresh stream info
+                showResponse(result);
+                logEvent('left', `Participant left: ${participantName}`, result);
                 await getStream();
             } catch (error) {
                 logEvent('error', 'Failed to leave stream', { error: error.message });
             }
         }
+
 
         function updateStreamInfo(stream) {
             document.getElementById('streamInfoCard').style.display = 'block';
@@ -469,22 +647,30 @@
 
             const participantsList = document.getElementById('participantsList');
             participantsList.innerHTML = '';
-            stream.participants.forEach(p => {
-                const div = document.createElement('div');
-                div.className = 'participant';
-                div.innerHTML = `
-                    <span><strong>${p.identity}</strong></span>
-                    <span>Joined: ${new Date(p.joinedAt).toLocaleString()}</span>
-                `;
-                participantsList.appendChild(div);
-            });
+            if (stream.participants.length === 0) {
+                participantsList.innerHTML = '<div style="color: #6c757d; font-style: italic;">No participants</div>';
+            } else {
+                stream.participants.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'participant';
+                    const joinedDate = new Date(p.joinedAt).toLocaleString();
+                    const leftDate = p.leftAt ? new Date(p.leftAt).toLocaleString() : 'Active';
+                    div.innerHTML = `
+                        <span><strong>${p.identity}</strong></span>
+                        <span>Joined: ${joinedDate} | Left: ${leftDate}</span>
+                    `;
+                    participantsList.appendChild(div);
+                });
+            }
         }
 
-        // Auto-connect on load
+        function clearLog() {
+            document.getElementById('eventsLog').innerHTML = '';
+        }
+
         window.addEventListener('load', () => {
-            logEvent('info', 'Client loaded, ready to connect');
+            logEvent('info', 'Client loaded, ready to use');
         });
     </script>
 </body>
 </html>
-

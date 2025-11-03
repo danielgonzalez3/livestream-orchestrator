@@ -29,7 +29,7 @@ export function createStreamsRouter(
 
   router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      const streams = stateService.getAllStreams();
+      const streams = await stateService.getAllStreams();
       res.json(streams);
     } catch (error) {
       next(error);
@@ -81,7 +81,7 @@ export function createStreamsRouter(
       const { id } = req.params;
       const { status, metadata } = req.body || {};
 
-      const stream = stateService.getStream(id);
+      const stream = await stateService.getStream(id);
       if (!stream) {
         return next(new AppError(404, `Stream with id ${id} not found`));
       }
@@ -100,7 +100,7 @@ export function createStreamsRouter(
         await stateService.updateStreamMetadata(id, metadata);
       }
 
-      const updatedStream = stateService.getStream(id);
+      const updatedStream = await stateService.getStream(id);
       res.json(updatedStream);
     } catch (error) {
       next(error);
@@ -156,7 +156,7 @@ export function createStreamsRouter(
         return next(new AppError(400, 'participantName is required and must be a string'));
       }
 
-      const stream = stateService.getStream(id);
+      const stream = await stateService.getStream(id);
       if (!stream) {
         return next(new AppError(404, `Stream with id ${id} not found`));
       }
