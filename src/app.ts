@@ -8,6 +8,7 @@ import { StreamOrchestratorService } from './services/stream-orchestrator';
 // import { WebSocketService } from './services/websocket';
 import { GrpcService } from './services/grpc';
 import { RedisService } from './services/redis';
+import { getMetricsService } from './services/metrics';
 import { createStreamsRouter } from './routes/streams';
 import { createWebhooksRouter } from './routes/webhooks';
 import { errorHandler, notFoundHandler } from './middleware/error-handler';
@@ -64,6 +65,18 @@ export class App {
         grpcClients: this.grpcService?.getClientCount() || 0,
         uptime: process.uptime()
       });
+    });
+
+    // prometheus metrics endpoint
+    this.app.get('/metrics', async (_req: any, res: any) => {
+      try {
+        const metrics = await getMetricsService().getMetrics();
+        res.set('Content-Type', 'text/plain');
+        res.send(metrics);
+      } catch (error) {
+        logger.error('Failed to get metrics', { error });
+        res.status(500).send('Failed to get metrics');
+      }
     });
   }
 

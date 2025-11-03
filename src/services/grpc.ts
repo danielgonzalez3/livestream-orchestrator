@@ -7,6 +7,7 @@ import {
   convertEventToGrpc,
   getProtoPath
 } from '../utils/grpc_util';
+import { getMetricsService } from './metrics';
 
 const PROTO_PATH = getProtoPath();
 
@@ -20,6 +21,7 @@ export class GrpcService {
   private clients: Set<GrpcClient> = new Set();
   private packageDefinition: protoLoader.PackageDefinition;
   private protoDescriptor: any;
+  private metrics = getMetricsService();
 
   constructor(
     private stateService: StreamStateService
@@ -51,6 +53,8 @@ export class GrpcService {
   private async handleSubscribe(
     call: grpc.ServerWritableStream<any, any>
   ): Promise<void> {
+    const method = 'Subscribe';
+    const timer = this.metrics.grpcRequestsDuration.startTimer({ method });
     const request = call.request;
     logger.info('Received gRPC subscribe request', { request });
     
@@ -63,6 +67,9 @@ export class GrpcService {
         details: 'stream_id cannot be empty'
       };
       logger.warn('gRPC subscribe rejected: empty stream_id');
+      this.metrics.grpcRequestsTotal.inc({ method, status: 'INVALID_ARGUMENT' });
+      this.metrics.grpcRequestsErrors.inc({ method, error_code: grpc.status.INVALID_ARGUMENT.toString() });
+      timer();
       call.emit('error', error);
       call.end();
       return;
@@ -77,6 +84,9 @@ export class GrpcService {
           code: grpc.status.NOT_FOUND,
           message: `Stream with id ${streamId} not found`
         };
+        this.metrics.grpcRequestsTotal.inc({ method, status: 'NOT_FOUND' });
+        this.metrics.grpcRequestsErrors.inc({ method, error_code: grpc.status.NOT_FOUND.toString() });
+        timer();
         call.emit('error', error);
         call.end();
         return;
@@ -88,14 +98,19 @@ export class GrpcService {
       };
 
       this.clients.add(client);
+      this.metrics.grpcActiveConnections.set(this.clients.size);
+      this.metrics.grpcRequestsTotal.inc({ method, status: 'OK' });
+      timer();
 
       call.on('cancelled', () => {
         this.clients.delete(client);
+        this.metrics.grpcActiveConnections.set(this.clients.size);
         logger.info('gRPC subscriber disconnected', { streamId, clientCount: this.clients.size });
       });
 
       call.on('end', () => {
         this.clients.delete(client);
+        this.metrics.grpcActiveConnections.set(this.clients.size);
         logger.info('gRPC subscriber ended connection', { streamId, clientCount: this.clients.size });
       });
     } catch (error) {
@@ -104,6 +119,9 @@ export class GrpcService {
         code: grpc.status.INTERNAL,
         message: error instanceof Error ? error.message : 'Internal server error'
       };
+      this.metrics.grpcRequestsTotal.inc({ method, status: 'INTERNAL' });
+      this.metrics.grpcRequestsErrors.inc({ method, error_code: grpc.status.INTERNAL.toString() });
+      timer();
       call.emit('error', grpcError);
       call.end();
     }
@@ -120,6 +138,7 @@ export class GrpcService {
         try {
           client.call.write(grpcEvent);
           broadcastCount++;
+          this.metrics.grpcEventsBroadcasted.inc({ event_type: event.type });
           // if stream is stopped, end the subscription
           if (event.type === 'stream_stopped') {
             logger.info('Stream stopped, ending gRPC subscription', { streamId: event.streamId });
@@ -136,6 +155,7 @@ export class GrpcService {
     // remove dead clients after iteration to avoid modifying Set during iteration
     for (const client of clientsToRemove) {
       this.clients.delete(client);
+      this.metrics.grpcActiveConnections.set(this.clients.size);
     }
 
     if (broadcastCount > 0) {
