@@ -104,7 +104,7 @@ describe('createIdempotencyMiddleware', () => {
     expect(mockRedis.set).toHaveBeenCalledWith(
       'idempotency:POST:/streams:test-key',
       expect.stringContaining('"status":201'),
-      3600
+      30
     );
   });
 
