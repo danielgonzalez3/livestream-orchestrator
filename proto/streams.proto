@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package livestream.orchestrator.v1;
+
+// service for managing livestreams
+service StreamService {
+  rpc StreamUpdates(StreamUpdatesRequest) returns (stream StreamUpdate);
+  rpc GetStreamState(GetStreamStateRequest) returns (StreamState);
+  rpc Subscribe(SubscribeRequest) returns (stream StreamEvent);
+}
+
+// Request to stream updates
+message StreamUpdatesRequest {
+  string stream_id = 1; // Optional: specific stream ID, empty for all streams
+}
+
+message StreamUpdate {
+  string stream_id = 1;
+  StreamStatus status = 2;
+  repeated Participant participants = 3;
+  int64 timestamp = 4; // unix timestamp in milliseconds
+  UpdateType update_type = 5;
+  map<string, string> metadata = 6;
+}
+
+// Stream state request
+message GetStreamStateRequest {
+  string stream_id = 1;
+}
+
+// Stream state response
+message StreamState {
+  string stream_id = 1;
+  StreamStatus status = 2;
+  repeated Participant participants = 3;
+  int64 started_at = 4;
+  int64 updated_at = 5;
+  int64 stopped_at = 6; // optional
+  map<string, string> metadata = 7;
+}
+
+message SubscribeRequest {
+  string stream_id = 1;
+}
+
+// stream event
+message StreamEvent {
+  StreamEventType event_type = 1;
+  string stream_id = 2;
+  int64 timestamp = 3;
+  oneof event_data {
+    StreamCreatedData stream_created = 4;
+    StreamUpdatedData stream_updated = 5;
+    StreamStoppedData stream_stopped = 6;
+    ParticipantJoinedData participant_joined = 7;
+    ParticipantLeftData participant_left = 8;
+  }
+}
+
+// stream status
+enum StreamStatus {
+  STREAM_STATUS_UNKNOWN = 0;
+  STREAM_STATUS_CREATING = 1;
+  STREAM_STATUS_ACTIVE = 2;
+  STREAM_STATUS_STOPPING = 3;
+  STREAM_STATUS_STOPPED = 4;
+  STREAM_STATUS_ERROR = 5;
+}
+
+// update type enum
+enum UpdateType {
+  UPDATE_TYPE_UNKNOWN = 0;
+  UPDATE_TYPE_CREATED = 1;
+  UPDATE_TYPE_UPDATED = 2;
+  UPDATE_TYPE_STOPPED = 3;
+  UPDATE_TYPE_STATUS_CHANGED = 4;
+  UPDATE_TYPE_PARTICIPANT_JOINED = 5;
+  UPDATE_TYPE_PARTICIPANT_LEFT = 6;
+}
+
+// event type enum
+enum StreamEventType {
+  STREAM_EVENT_TYPE_UNKNOWN = 0;
+  STREAM_EVENT_TYPE_STREAM_CREATED = 1;
+  STREAM_EVENT_TYPE_STREAM_UPDATED = 2;
+  STREAM_EVENT_TYPE_STREAM_STOPPED = 3;
+  STREAM_EVENT_TYPE_PARTICIPANT_JOINED = 4;
+  STREAM_EVENT_TYPE_PARTICIPANT_LEFT = 5;
+}
+
+// participant message
+message Participant {
+  string id = 1;
+  string identity = 2;
+  int64 joined_at = 3; // unix timestamp in milliseconds
+  int64 left_at = 4; // unix timestamp in milliseconds (optional)
+  map<string, string> metadata = 5;
+}
+
+// event data types
+message StreamCreatedData {
+  string room_name = 1;
+  map<string, string> metadata = 2;
+}
+
+message StreamUpdatedData {
+  StreamStatus previous_status = 1;
+  StreamStatus current_status = 2;
+  map<string, string> metadata = 3;
+}
+
+message StreamStoppedData {
+  string room_name = 1;
+}
+
+message ParticipantJoinedData {
+  Participant participant = 1;
+}
+
+message ParticipantLeftData {
+  Participant participant = 1;
+}
+

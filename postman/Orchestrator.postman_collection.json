@@ -1,0 +1,152 @@
+{
+  "info": {
+    "name": "Livestream Orchestrator API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "HTTP endpoints for the Livestream Orchestrator. For gRPC, import proto/streams.proto in Postman and connect to grpc://localhost:8001."
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+      }
+    },
+    {
+      "name": "Streams",
+      "item": [
+        {
+          "name": "Create Stream",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomName\": \"{{roomName}}\",\n  \"metadata\": { \"title\": \"{{title}}\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/streams", "host": ["{{baseUrl}}"], "path": ["streams"] }
+          }
+        },
+        {
+          "name": "List Streams",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/streams", "host": ["{{baseUrl}}"], "path": ["streams"] }
+          }
+        },
+        {
+          "name": "Get Stream",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/streams/{{streamId}}", "host": ["{{baseUrl}}"], "path": ["streams","{{streamId}}"] }
+          }
+        },
+        {
+          "name": "Get Stream State",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/streams/{{streamId}}/state", "host": ["{{baseUrl}}"], "path": ["streams","{{streamId}}","state"] }
+          }
+        },
+        {
+          "name": "Update Stream",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"{{status}}\",\n  \"metadata\": { \"title\": \"{{title}}\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/streams/{{streamId}}", "host": ["{{baseUrl}}"], "path": ["streams","{{streamId}}"] }
+          }
+        },
+        {
+          "name": "Stop Stream",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/streams/{{streamId}}", "host": ["{{baseUrl}}"], "path": ["streams","{{streamId}}"] }
+          }
+        },
+        {
+          "name": "Join Stream",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participantName\": \"{{participantName}}\",\n  \"metadata\": { \"displayName\": \"{{displayName}}\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/streams/{{streamId}}/join", "host": ["{{baseUrl}}"], "path": ["streams","{{streamId}}","join"] }
+          }
+        },
+        {
+          "name": "Leave Stream",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participantName\": \"{{participantName}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/streams/{{streamId}}/leave", "host": ["{{baseUrl}}"], "path": ["streams","{{streamId}}","leave"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "Get Events (All)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/events?limit={{limit}}", "host": ["{{baseUrl}}"], "path": ["events"], "query": [{"key":"limit","value":"{{limit}"}] }
+          }
+        },
+        {
+          "name": "Get Events (By Stream)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/events/{{streamId}}?limit={{limit}}", "host": ["{{baseUrl}}"], "path": ["events","{{streamId}}"], "query": [{"key":"limit","value":"{{limit}"}] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "LiveKit Webhook Example",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"participant_joined\",\n  \"room\": { \"name\": \"{{roomName}}\" },\n  \"participant\": { \"identity\": \"{{participantName}}\", \"metadata\": \"{\\\"displayName\\\":\\\"{{displayName}}\\\"}\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/webhooks/livekit", "host": ["{{baseUrl}}"], "path": ["webhooks","livekit"] }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "streamId", "value": "" },
+    { "key": "participantName", "value": "user1" },
+    { "key": "displayName", "value": "John Doe" },
+    { "key": "roomName", "value": "my-stream" },
+    { "key": "title", "value": "My Stream" },
+    { "key": "status", "value": "active" },
+    { "key": "limit", "value": "100" }
+  ]
+}
+
+
