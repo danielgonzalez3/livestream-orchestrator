@@ -4,7 +4,7 @@ import { logger } from '../utils/logger';
 
 // NOTE: Catch all TTL
 const IDEMPOTENCY_KEY_HEADER = 'idempotency-key';
-const IDEMPOTENCY_TTL = 3600;
+const IDEMPOTENCY_TTL = 30;
 
 export function createIdempotencyMiddleware(redisService?: RedisService) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {

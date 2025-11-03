@@ -6,7 +6,7 @@ import { RedisService } from './redis';
 
 // NOTE: Catch all TTL
 const STREAM_EVENTS_CHANNEL = 'stream_events';
-const IDEMPOTENCY_TTL = 3600;
+const IDEMPOTENCY_TTL = 30;
 
 export class StreamStateService extends EventEmitter {
   private streamEvents: StreamEvent[] = [];
